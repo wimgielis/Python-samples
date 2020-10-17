@@ -36,13 +36,21 @@
 581,0
 582,0
 603,0
-572,94
+572,102
 
 #****Begin: Generated Statements***
 #****End: Generated Statements****
 
 
-# Counting the number of public views and subsets in the model (for clean up purposes)
+####################################################
+# Author: Wim Gielis
+# Date: 17-10-2020
+# Purpose:
+# - list the number of pblic cube views and dimension subsets
+# - for clean up purposes, of objects lurking around in the TM1 data directory
+# - 
+####################################################
+
 
 # The minimal number of public objects in order to track it in the text file output
 cThreshold_views = 8;
