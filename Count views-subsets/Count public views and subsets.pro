@@ -46,7 +46,7 @@
 # Author: Wim Gielis
 # Date: 17-10-2020
 # Purpose:
-# - list the number of pblic cube views and dimension subsets
+# - list the number of public cube views and dimension subsets
 # - for clean up purposes, of objects lurking around in the TM1 data directory
 # - 
 ####################################################
