@@ -2,6 +2,15 @@ from TM1py.Services import TM1Service
 
 def count_public_views_and_subsets():
 
+    ####################################################
+    # Author: Wim Gielis
+    # Date: 17-10-2020
+    # Purpose:
+    # - list the number of public cube views and dimension subsets
+    # - for clean up purposes, of objects lurking around in the TM1 data directory
+    # - 
+    ####################################################
+
     # =============================================================================================================
     # START of parameters and settings
     # =============================================================================================================
