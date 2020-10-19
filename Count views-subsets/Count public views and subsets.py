@@ -8,7 +8,7 @@ def count_public_views_and_subsets():
     # Purpose:
     # - list the number of public cube views and dimension subsets
     # - for clean up purposes, of objects lurking around in the TM1 data directory
-    # - 
+    # - there is a similar coding in Turbo Integrator available at GitHub. All in all, I prefer the solution in TI.
     ####################################################
 
     # =============================================================================================================
