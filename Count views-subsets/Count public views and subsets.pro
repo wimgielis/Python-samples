@@ -48,7 +48,7 @@
 # Purpose:
 # - list the number of public cube views and dimension subsets
 # - for clean up purposes, of objects lurking around in the TM1 data directory
-# - 
+# - there is a similar coding in Python and tm1py available at GitHub. All in all, I prefer the solution in TI.
 ####################################################
 
 
