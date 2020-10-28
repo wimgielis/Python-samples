@@ -6,8 +6,8 @@ def count_public_views_and_subsets():
     # Author: Wim Gielis
     # Date: 17-10-2020
     # Purpose:
-    # - list the number of public cube views and dimension subsets
-    # - for clean up purposes, of objects lurking around in the TM1 data directory
+    # - list the number of public cube views and dimension subsets, if exceeding a threshold value
+    # - for clean up purposes, when objects lurking are around in the TM1 data directory (temporary objects should be used)
     # - there is a similar coding in Turbo Integrator available at GitHub. All in all, I prefer the solution in TI.
     ####################################################
 
@@ -22,9 +22,9 @@ def count_public_views_and_subsets():
     PORT = 8001
     SSL = False
 
-    output_filename = 'D:\\count public views and subsets.txt'
+    RESULT_FILE = r'D:\count public views and subsets.txt'
 
-    # list a cube or dimension only if the count of views, dimensions, resp. exceeds the threshold
+    # list a cube or dimension only if the count of views, resp. dimensions, exceeds the threshold
     threshold_views = 8
     threshold_subsets = 8
 
@@ -32,8 +32,7 @@ def count_public_views_and_subsets():
     # END of parameters and settings
     # =============================================================================================================
 
-    filehandle = open(f'{output_filename}', 'w')
-    logline = []
+    log_lines = []
     public_views = {}
     public_subsets = {}
 
@@ -67,18 +66,18 @@ def count_public_views_and_subsets():
         public_subsets = sorted(public_subsets.items(), key=lambda x: x[1], reverse=True)
 
     # output to a text file
-    logline.append("Public cube views: (at least " + str(threshold_views) + ")")
-    logline.append("-"*35 + "\n")
+    log_lines.append("Public cube views: (at least " + str(threshold_views) + ")")
+    log_lines.append("-" * 35 + "\n")
     for k, value in public_views:
-        logline.append("\t{}\t\t{}".format(value, k))
+        log_lines.append("\t{}\t\t{}".format(value, k))
 
-    logline.append("\n\nPublic dimension subsets: (at least " + str(threshold_subsets) + ")")
-    logline.append("-"*35 + "\n")
+    log_lines.append("\n\nPublic dimension subsets: (at least " + str(threshold_subsets) + ")")
+    log_lines.append("-" * 35 + "\n")
     for k, value in public_subsets:
-        logline.append("\t{}\t\t{}".format(value, k))
+        log_lines.append("\t{}\t\t{}".format(value, k))
 
-    filehandle.write("\n".join(logline))
-    filehandle.close()
-    return
+    with open(RESULT_FILE, 'w', encoding='utf-8') as file:
+        file.write("\n".join(log_lines))
+        file.close()
 
 count_public_views_and_subsets()
