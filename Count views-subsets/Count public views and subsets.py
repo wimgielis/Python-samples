@@ -38,7 +38,7 @@ def count_public_views_and_subsets():
 
     tm1 = TM1Service(address=ADDRESS, port=PORT, user=USER, password=PWD, namespace='', gateway='', ssl=SSL)
 
-    # Iterate through cubes and dimensions to count the public views, subsets,n resp.
+    # Iterate through cubes and dimensions to count the public views, subsets, resp.
     cube_names = tm1.cubes.get_all_names()
     for cube_name in cube_names:
         private_view_names, public_views_names = tm1.cubes.views.get_all_names(cube_name=cube_name)
