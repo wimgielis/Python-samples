@@ -50,7 +50,7 @@
 
 
 # Where do we output text files ?
-cDestination_Folder = GetProcessErrorFileDirectory | 'TM1 output\Cubes and dimensions_python\';
+cDestination_Folder = GetProcessErrorFileDirectory | 'TM1 output\Cubes and dimensions\';
 If( FileExists( cDestination_Folder ) = 0 );
    ExecuteCommand( Expand( 'cmd /c "md "%cDestination_Folder%""' ), 1 );
 EndIf;
