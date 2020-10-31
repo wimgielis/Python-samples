@@ -74,4 +74,5 @@ def formatted_dimension_names_db(dims: List[str]) -> List[str]:
 def formatted_dimension_names_cellgetn(dims: List[str]) -> List[str]:
     return ["v" + d.replace(' ', '').replace('{', '').replace('}', '') for d in dims]
 
-output_cube_configurations()
+if __name__ == "__main__":
+    output_cube_configurations()
