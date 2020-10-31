@@ -80,4 +80,5 @@ def count_public_views_and_subsets():
         file.write("\n".join(log_lines))
         file.close()
 
-count_public_views_and_subsets()
+if __name__ == "__main__":
+    count_public_views_and_subsets()
