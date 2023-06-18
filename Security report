@@ -1,0 +1,397 @@
+from timeit import default_timer
+
+from typing import Iterable
+from TM1py.Services import TM1Service, SecurityService, CubeService
+from TM1py import Utils
+from TM1py.Utils import CellUpdateableProperty
+import logging
+
+def cell_report_including_security(user_name: str,
+                                   cube_name: str,
+                                   elements: Iterable,
+                                   dimensions: Iterable[str] = None):
+
+    """ Evaluate the rights of a user to a certain cell. Logging provided, including information on the cell.
+
+    :param cube_name: name of the target cube
+    :param elements: Iterable [Element1, Element2, Element3]. Element names are provided in the dimension order.
+    :return: for now, text output in the terminal
+    """
+
+    # =============================================================================================================
+    # START of parameters and settings
+    # =============================================================================================================
+    
+    # TM1 connection settings (IntegratedSecurityMode = 1)
+    ADDRESS = 'xx.xxx.xxx.xxx'
+    USER = 'admin'
+    PWD = 'apple'
+    PORT = 0000
+    SSL = True
+    
+    # =============================================================================================================
+    # END of parameters and settings
+    # =============================================================================================================
+
+    with TM1Service(address=ADDRESS, port=PORT, user=USER, password=PWD, namespace='', gateway='', ssl=SSL) as tm1:
+
+        '''
+        1. initial checks (most probably met but just in case)
+        '''
+
+        if not tm1.cubes.exists(cube_name):
+            logging.info(f'The cube {cube_name} does not seem to exist.')
+            return ''
+        
+        if not tm1.security.user_exists(user_name):
+            logging.info('This user does not exist!')
+            return ''
+
+        user = tm1.security.get_user(user_name)
+        if not user.enabled:
+            logging.info('This user is disabled!')
+            return ''
+
+        if str(user.user_type) == 'Admin':
+            logging.info('This user is enabled and part of the Admin group: not much to validate here!')
+            return ''
+        elif str(user.user_type) == 'DataAdmin':
+            logging.info('This user is enabled and part of the DataAdmin group: not much to validate here!')
+            return ''
+
+        logging.info('This user is a regular user.')
+
+        groups = tm1.security.get_groups(user_name)
+        group_names = ', '.join(groups)
+        number_of_groups = len(groups)
+        group_suffix = '' if number_of_groups == 1 else 's'
+        if not groups:
+            logging.info('This user is not part of any security group.')
+            return ''
+
+        logging.info(f'This user is part of {number_of_groups} security group{group_suffix}: {group_names}')
+
+        read_only_users = tm1.security.get_read_only_users()
+        if user in read_only_users:
+            logging.info('This user is marked as read-only.')
+            return 'READ'
+
+        '''
+        2. Check CUBE SECURITY
+        '''
+
+        cube = tm1.cubes.get(cube_name)
+        rules_based = ' (containing rules)' if get_cube_info(tm1, 'has_rules', cube_name) else ''
+        logging.info(f'The }}CubeSecurity control cube exists{rules_based}. Let\'s investigate its contents for the user.')
+
+        cube_security_result = get_security_level(tm1, 'cube', groups, cube_name=cube_name )
+        logging.info('RESULT cube: ' + cube_security_result)
+
+        '''
+        3. Check DIMENSION SECURITY
+        '''
+
+        dimensions = tm1.cubes.get_dimension_names(cube_name)
+        print(dimensions)
+        print(elements)
+        for dim in dimensions:
+            dimension_security_result = get_security_level(tm1, 'dimension', groups, dimension_name=dim )
+            logging.info('RESULT dimension ' +  dim + ': ' + dimension_security_result)
+
+        '''
+        4. Check ELEMENT SECURITY
+        '''
+
+        for i, elem in enumerate(elements):
+            dim = dimensions[i]
+            element_security_result = get_security_level(tm1, 'element', groups, dimension_name=dim, element_name=elem )
+            logging.info('RESULT dimension ' +  dim + ': ' + element_security_result)
+
+        '''
+        5. Check CELL SECURITY
+        '''
+
+        cell_security_result = get_security_level(tm1, 'cell', groups, cube_name=cube_name, dimension_names=dimensions, element_names=elements )
+        logging.info('RESULT cell: ' + cell_security_result)
+
+        '''
+        6. Check SECURITY OVERLAY
+        '''
+
+        security_overlay_result = get_security_level(tm1, 'overlay', groups, cube_name=cube_name, dimension_names=dimensions, element_names=elements )
+        logging.info('RESULT overlay: ' + security_overlay_result)
+
+        '''
+        7. Get CUBE SECURITY properties
+        '''
+
+        cell_sec_def_val = get_cube_info(tm1, 'cell_security_default_value', cube_name)
+        cell_sec_most_restr = get_cube_info(tm1, 'cell_security_most_restrictive', cube_name)
+
+        '''
+        8. Check CUBE LOCKS
+        '''
+
+        cube_is_locked = get_cube_info(tm1, 'is_locked', cube_name)
+
+        '''
+        9. Check ELEMENT LOCKS
+        '''
+        # Work in progress
+
+        '''
+        10. Check DATA RESERVATIONS
+        '''
+        # Work in progress
+
+        '''
+        11. Check CAPABILITIES
+        '''
+        # Work in progress
+
+        '''
+        12. Check CUBE information
+        '''
+        # Work in progress
+            # has rules (done)
+            # has picklist cube
+            # has attributes cube
+            # has cellsecurity cube (done)
+            # has security overlay cube
+            # is locked (done)
+            # has drillthrough defined
+            # cellsecuritymostrestrictive (done)
+            # cellsecuritydefaultvalue (done)
+        
+        '''
+        13. Check CELL information
+        '''
+        # Work in progress
+            # value
+            # has rules
+            # has picklist (through cube or attribute)
+            # is consolidated
+            # is string/numeric
+            # has drillthrough defined
+        
+        '''
+        14. Check ELEMENT information
+        '''
+        # Work in progress
+            # has picklist attribute
+            # is locked
+            # has elementsecurity cube for the dimension
+
+
+def get_security_level(tm1: TM1Service, area: str, security_groups: list, **kwargs) -> str:
+    
+    '''
+    Purpose:
+    determine the control cube to investigate (FROM in the MDX)
+    as well as read the kwargs to get the selection in the dimension other than the }Groups dimension (COLUMNS in the MDX) (except Security overlay)
+    '''
+    match area:
+        case 'cube':
+            area_name = 'CUBE SECURITY'
+            control_cube_name = '}CubeSecurity'
+            default_rights_if_no_control_cube = 'WRITE'
+            column_selection = f'{{[}}Cubes].[}}Cubes].[{kwargs["cube_name"]}]}}'
+        case 'dimension':
+            area_name = 'DIMENSION SECURITY'
+            control_cube_name = '}DimensionSecurity'
+            default_rights_if_no_control_cube = 'READ'
+            column_selection = f'{{[}}Dimensions].[}}Dimensions].[{kwargs["dimension_name"]}]}}'
+        case 'element':
+            area_name = 'ELEMENT SECURITY for ' + kwargs["dimension_name"]
+            control_cube_name = f'}}ElementSecurity_{kwargs["dimension_name"]}'
+            default_rights_if_no_control_cube = 'WRITE'
+            column_selection = f'{{[{kwargs["dimension_name"]}].[{kwargs["dimension_name"]}].[{kwargs["element_name"]}]}}'
+        case 'cell':
+            area_name = 'CELL SECURITY for'
+            control_cube_name = f'}}CellSecurity_{kwargs["cube_name"]}'
+            default_rights_if_no_control_cube = 'WRITE'
+            if not tm1.cubes.exists(control_cube_name):
+                return default_rights_if_no_control_cube
+
+            cell_security_dimensions = tm1.cubes.get_dimension_names(control_cube_name)
+            column_selection = ' * '.join('{[' + kwargs["dimension_names"][i] + '].[' + kwargs["dimension_names"][i] + '].[' + elem + ']}' \
+                for i, elem in enumerate(kwargs["element_names"]) \
+                if kwargs["dimension_names"][i] in cell_security_dimensions )
+        case 'overlay':
+            area_name = 'SECURITY OVERLAY'
+            control_cube_name = f'}}SecurityOverlayGlobal_{kwargs["cube_name"]}'
+            default_rights_if_no_control_cube = 'WRITE'
+            if not tm1.cubes.exists(control_cube_name):
+                return default_rights_if_no_control_cube
+
+            security_overlay_dimensions = tm1.cubes.get_dimension_names(control_cube_name)
+            column_selection = ' * '.join('{[' + kwargs["dimension_names"][i] + '].[' + kwargs["dimension_names"][i] + '].[' + elem + ']}' \
+                for i, elem in enumerate(kwargs["element_names"]) \
+                if kwargs["dimension_names"][i] in security_overlay_dimensions )
+        case _:
+            logging.info('Oops, unknown area provided!')
+            return ''
+    
+    '''
+    check the control cube existence
+    '''
+    if not tm1.cubes.exists(control_cube_name):
+        logging.info(f'The control cube {control_cube_name} does not exist. Assuming {default_rights_if_no_control_cube} access for the user.')
+        return default_rights_if_no_control_cube
+
+    '''
+    read the groups from the list (ROWS in the MDX)
+    '''
+    if area != 'overlay':
+        row_selection = '{' + ','.join('[}Groups].[}Groups].[' + grp + ']' for grp in security_groups) + '}'
+    else:
+        row_selection = '{[}SecurityOverlay].[}SecurityOverlay].[OverlayData]}'
+
+    mdx = f""" SELECT 
+        {column_selection} ON COLUMNS,
+        {row_selection} ON ROWS
+        FROM [{control_cube_name}]
+    """
+    cellset = tm1.cells.execute_mdx(mdx=mdx, element_unique_names=False)
+
+    # LOGGING
+    logging.info(cellset)
+    for key, value in cellset.items():
+        logging.info(area_name + ': row dimension element = ' + key[-1] + ' ==> ' + value['Value'])
+        # logging.info(key[1] + ' : ' + value['Value'])
+
+    # determine the rights by "adding up" individual group rights
+    cellset = tm1.cells.execute_mdx_rows_and_values(mdx=mdx, element_unique_names=False)
+    s = ''
+    for row, values in cellset.items():
+        group_name = row[0]
+        old_rights = s
+        new_rights = str(values[0])
+        if area == 'overlay':
+            new_rights = 'WRITE' if new_rights == '2' else 'READ'
+
+        s = get_max_security(old_rights, new_rights)
+
+    return s
+
+def get_max_security(existing_security: str, new_security: str) -> str:
+
+    '''
+    Purpose:
+    Evaluate the security rights: the highest rights for the object win
+    '''
+
+    existing_security = existing_security.upper()
+    new_security = new_security.upper()
+
+    match new_security:
+
+        case '' | 'NONE' | 'READ' | 'WRITE' | 'RESERVE' | 'LOCK' | 'ADMIN' | 'GRANT' | 'DENY':
+            # these are valid possibilities
+            pass
+
+    match existing_security:
+
+        case 'NONE' | '':
+            match new_security:
+                case 'NONE' | 'READ' | 'WRITE' | 'RESERVE' | 'LOCK' | 'ADMIN' | 'GRANT':
+                    return new_security
+
+        case 'READ':
+            match new_security:
+                case 'WRITE' | 'RESERVE' | 'LOCK' | 'ADMIN':
+                    return new_security
+
+        case 'WRITE':
+            match new_security:
+                case 'RESERVE' | 'LOCK' | 'ADMIN':
+                    return new_security
+
+        case 'RESERVE':
+            match new_security:
+                case 'LOCK' | 'ADMIN':
+                    return new_security
+
+        case 'LOCK':
+            match new_security:
+                case 'ADMIN':
+                    return new_security
+
+        case 'ADMIN':
+            pass
+
+        case 'DENY':
+            pass
+
+        case 'GRANT':
+            match new_security:
+                case 'DENY':
+                    return new_security
+
+        case _:
+            return new_security
+
+    return existing_security
+
+
+def get_cube_info(tm1: TM1Service, info: str, cube_name: str):
+
+    '''
+    Purpose:
+    get information from a certain cube
+    returns either a boolean or a string value
+    '''
+
+    if not tm1.cubes.exists(cube_name):
+        return ''
+
+    cube = tm1.cubes.get(cube_name)
+
+    match info:
+        case 'has_rules':
+            return cube.has_rules
+        case 'has_cell_security_cube':
+            return tm1.cubes.exists('}CellSecurity_' + cube_name)
+        case 'has_security_overlay_cube':
+            return tm1.cubes.exists('}SecurityOverlayGlobal_' + cube_name)
+
+        case 'is_locked':
+            if not tm1.cubes.exists('}CubeProperties'):
+                return False
+            
+            column_selection = '{[}Cubes].[}Cubes].[' + cube_name + ']}'
+            row_selection = '{[}CubeProperties].[}CubeProperties].[LOCK]}'
+            mdx = f""" SELECT 
+                {column_selection} ON COLUMNS,
+                {row_selection} ON ROWS
+                FROM [}}CubeProperties]
+            """
+            cellset = tm1.cells.execute_mdx_values(mdx=mdx, element_unique_names=False)
+            return cellset[0] != ''
+
+        case 'cell_security_default_value' | 'cell_security_most_restrictive':
+            if not tm1.cubes.exists('}CubeSecurityProperties'):
+                return ''
+            
+            column_selection = '{[}Cubes].[}Cubes].[' + cube_name + ']}'
+            row_selection = '{[}CubeSecurityProperties].[}CubeSecurityProperties].[' + info.replace('_', '') + ']}'
+            mdx = f""" SELECT 
+                {column_selection} ON COLUMNS,
+                {row_selection} ON ROWS
+                FROM [}}CubeSecurityProperties]
+            """
+            cellset = tm1.cells.execute_mdx_values(mdx=mdx, element_unique_names=False)
+            return cellset[0]
+
+
+if __name__ == "__main__":
+
+    start = default_timer()
+
+    level = logging.INFO
+    fmt = '[%(levelname)s] %(asctime)s: %(message)s'
+    logging.basicConfig(level=level, format=fmt, datefmt='%Y-%m-%d %H:%M:%S')
+
+    cell_report_including_security('DSM', 'Activity', ['Current', 'Senior consultant', 'Project XYZ', 'DSM', '2023', '06-08', 'Hours'])
+
+    print(default_timer() - start)
